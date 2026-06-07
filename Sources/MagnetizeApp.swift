@@ -51,10 +51,24 @@ struct MagnetizeApp: App {
     @StateObject private var state = AppState.shared
 
     var body: some Scene {
-        MenuBarExtra("Magnetize", systemImage: "arrow.down.circle") {
+        MenuBarExtra {
             MenuContentView()
                 .environmentObject(state)
+        } label: {
+            // SwiftUI ignores .font() on a MenuBarExtra label, so size the glyph
+            // via an NSImage symbol configuration and let it render as a template.
+            Image(nsImage: Self.menuBarIcon)
         }
         .menuBarExtraStyle(.window)
     }
+
+    /// The menu bar glyph at a larger point size than the SwiftUI default.
+    /// Template-rendered so macOS tints it for light/dark menu bars.
+    private static let menuBarIcon: NSImage = {
+        let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)
+        let image = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: "Magnetize")?
+            .withSymbolConfiguration(config)
+        image?.isTemplate = true
+        return image ?? NSImage()
+    }()
 }
