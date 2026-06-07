@@ -30,8 +30,8 @@ let cx = size / 2
 let r: CGFloat = 112          // arc radius = half the gap between the legs
 let leftX = cx - r            // 400
 let rightX = cx + r           // 624
-let legBottom: CGFloat = 250
-let curveY: CGFloat = 600
+let legBottom: CGFloat = 282    // shifted up 32 so the magnet's bbox centers vertically
+let curveY: CGFloat = 632
 let w: CGFloat = 150          // stroke thickness
 
 let u = NSBezierPath()
