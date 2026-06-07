@@ -166,7 +166,7 @@ private struct SectionLabel: View {
     }
 }
 
-/// One recent-send row: status glyph, name + detail, relative time.
+/// One recent-send row: status glyph, name + detail.
 private struct RecentRow: View {
     let item: SentItem
 
@@ -186,22 +186,10 @@ private struct RecentRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            Spacer(minLength: 6)
-            Text(Self.relative(item.date))
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 3)
-    }
-
-    private static let formatter: RelativeDateTimeFormatter = {
-        let f = RelativeDateTimeFormatter()
-        f.unitsStyle = .abbreviated
-        return f
-    }()
-    private static func relative(_ date: Date) -> String {
-        formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 
