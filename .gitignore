@@ -1,7 +1,7 @@
 .DS_Store
 
-# Transient build output: build-app.sh creates this here, then moves it to /Applications
-/Magnetize.app/
+# Transient build output: build-app.sh compiles the app here
+/build/
 
 # Regenerable icon intermediates (recreate with icon/build-icon.sh)
 /icon/magnetize-1024.png

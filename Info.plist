@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Magnetize</string>
+    <key>CFBundleDisplayName</key>
+    <string>Magnetize</string>
+    <key>CFBundleExecutable</key>
+    <string>Magnetize</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.local.magnetize</string>
+    <key>CFBundleIconFile</key>
+    <string>Magnetize</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>2.0</string>
+    <key>CFBundleVersion</key>
+    <string>2</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <!-- Menu bar agent: no Dock icon, no app menu. -->
+    <key>LSUIElement</key>
+    <true/>
+    <!-- Register as the handler for magnet: links. -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>Magnet Link</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>magnet</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>
