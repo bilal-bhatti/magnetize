@@ -14,6 +14,7 @@ struct MenuContentView: View {
     @State private var clipboardChangeCount = -1
 
     private let clipboardPoll = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    private let statsPoll = Timer.publish(every: 4, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -25,8 +26,12 @@ struct MenuContentView: View {
         }
         .padding(.vertical, 6)
         .frame(width: 300)
-        .onAppear(perform: refreshClipboard)
+        .onAppear {
+            refreshClipboard()
+            state.refreshStats()
+        }
         .onReceive(clipboardPoll) { _ in refreshClipboard() }
+        .onReceive(statsPoll) { _ in state.refreshStats() }
     }
 
     /// Re-reads the pasteboard, but only does the parsing work when its contents
@@ -58,7 +63,10 @@ struct MenuContentView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 6)
+            if let counts = state.counts {
+                CountStrip(counts: counts)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 2)
@@ -115,6 +123,33 @@ struct MenuContentView: View {
 }
 
 // MARK: - Building blocks
+
+/// Compact downloading / paused / complete counter for the header. Each glyph
+/// stays put so the numbers don't jump around as they update.
+private struct CountStrip: View {
+    let counts: TorrentCounts
+
+    var body: some View {
+        HStack(spacing: 7) {
+            stat("arrow.down", counts.downloading)
+            stat("pause", counts.paused)
+            stat("checkmark", counts.complete)
+            stat("exclamationmark.triangle", counts.failed, alert: true)
+        }
+        .help("Downloading · Paused · Complete · Failed")
+    }
+
+    private func stat(_ symbol: String, _ n: Int, alert: Bool = false) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: symbol).font(.system(size: 9, weight: .semibold))
+            Text("\(n)").font(.system(size: 11).monospacedDigit())
+        }
+        .foregroundStyle(
+            n == 0 ? AnyShapeStyle(.tertiary)
+                   : alert ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary)
+        )
+    }
+}
 
 /// Small uppercase section heading aligned to the row text column.
 private struct SectionLabel: View {

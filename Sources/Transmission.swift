@@ -18,6 +18,20 @@ enum TestOutcome {
     case failed(String)
 }
 
+/// A compact snapshot of the server's torrents, bucketed for the header.
+struct TorrentCounts: Equatable {
+    var downloading = 0
+    var paused = 0
+    var complete = 0
+    var failed = 0
+}
+
+enum StatsOutcome {
+    case ok(TorrentCounts)
+    case authFailed
+    case failed(String)
+}
+
 actor TransmissionClient {
     struct Config {
         var rpcURL: URL
@@ -73,6 +87,48 @@ actor TransmissionClient {
             }
             let args = json?["arguments"] as? [String: Any]
             return args?["torrent-duplicate"] != nil ? .duplicate(name) : .added(name)
+        } catch {
+            return .failed(error.localizedDescription)
+        }
+    }
+
+    /// One torrent-get fetching only the fields needed to bucket each torrent
+    /// into downloading / paused / complete. Cheap enough to poll while the
+    /// popover is open.
+    func stats(_ config: Config) async -> StatsOutcome {
+        let payload: [String: Any] = [
+            "method": "torrent-get",
+            "arguments": ["fields": ["status", "percentDone", "error"]],
+        ]
+        guard let body = try? JSONSerialization.data(withJSONObject: payload) else {
+            return .failed("could not encode request")
+        }
+        do {
+            let (status, data) = try await rpc(config, body: body)
+            if status == 401 { return .authFailed }
+            guard status == 200 else { return .failed("HTTP \(status)") }
+
+            let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            guard let torrents = (json?["arguments"] as? [String: Any])?["torrents"] as? [[String: Any]] else {
+                return .failed("unexpected response")
+            }
+
+            var counts = TorrentCounts()
+            for t in torrents {
+                let st = t["status"] as? Int ?? 0
+                let done = (t["percentDone"] as? Double) ?? 0
+                let error = t["error"] as? Int ?? 0
+                if error >= 2 {                     // tracker error (2) or local error (3)
+                    counts.failed += 1              // benign tracker warnings (1) don't count
+                } else if done >= 1 {
+                    counts.complete += 1            // finished, incl. stopped/seeding
+                } else if st == 0 {
+                    counts.paused += 1              // user-stopped, still incomplete
+                } else {
+                    counts.downloading += 1         // actively progressing
+                }
+            }
+            return .ok(counts)
         } catch {
             return .failed(error.localizedDescription)
         }

@@ -20,6 +20,10 @@ final class AppState: ObservableObject {
     @Published var lastStatus = "Ready"
     @Published var launchAtLogin: Bool
 
+    /// Live torrent breakdown shown in the popover header. nil until the first
+    /// successful fetch (or after one fails) so we never show stale numbers.
+    @Published var counts: TorrentCounts?
+
     private let client = TransmissionClient()
     private var pending: [TorrentSource] = []
 
@@ -128,6 +132,18 @@ final class AppState: ObservableObject {
         queued.forEach(send)
         lastStatus = queued.isEmpty ? "Settings saved"
             : "Settings saved — sending \(queued.count) queued torrent\(queued.count == 1 ? "" : "s")"
+    }
+
+    /// Refreshes the header torrent counts. Silent: it never touches lastStatus
+    /// or pops Settings — it's ambient, not an action the user initiated.
+    func refreshStats() {
+        guard isConfigured, let config = makeConfig() else { counts = nil; return }
+        Task {
+            switch await client.stats(config) {
+            case .ok(let c):           counts = c
+            case .authFailed, .failed: counts = nil
+            }
+        }
     }
 
     func testConnection() {
