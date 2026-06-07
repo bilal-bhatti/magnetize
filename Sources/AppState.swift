@@ -21,7 +21,7 @@ final class AppState: ObservableObject {
     @Published var launchAtLogin: Bool
 
     private let client = TransmissionClient()
-    private var pending: [URL] = []
+    private var pending: [TorrentSource] = []
 
     /// Only the RPC URL is required; credentials are optional (a server may run
     /// without RPC auth).
@@ -55,29 +55,45 @@ final class AppState: ObservableObject {
         recents = AppState.loadRecents()
     }
 
-    // MARK: - Incoming magnets
+    // MARK: - Incoming magnets & torrent files
 
+    /// A magnet: link or an http(s) .torrent URL (from the GetURL Apple Event or
+    /// the clipboard action). Anything else is ignored.
     func handleIncoming(_ url: URL) {
-        guard url.scheme?.lowercased() == "magnet" else { return }
+        guard let source = TorrentSource.from(url: url) else { return }
+        submit(source)
+    }
+
+    /// A .torrent file opened with Magnetize (Finder "Open With", a download, …).
+    func handleTorrentFile(_ url: URL) {
+        guard let source = TorrentSource.file(at: url) else {
+            record(name: url.lastPathComponent, status: "Couldn't read torrent file", ok: false)
+            Notify.post("Magnetize", "Couldn't read \(url.lastPathComponent).")
+            return
+        }
+        submit(source)
+    }
+
+    /// Send now if configured, otherwise queue until the user saves settings.
+    private func submit(_ source: TorrentSource) {
         guard isConfigured else {
-            pending.append(url)
+            pending.append(source)
             lastStatus = "Configure Magnetize, then it'll send."
-            Notify.post("Magnetize", "Set your Transmission server to send this magnet.")
+            Notify.post("Magnetize", "Set your Transmission server to send this torrent.")
             openSettings()
             return
         }
-        send(url)
+        send(source)
     }
 
-    private func send(_ url: URL) {
+    private func send(_ source: TorrentSource) {
         guard let config = makeConfig() else {
-            record(name: "magnet link", status: "Bad RPC URL", ok: false)
+            record(name: source.displayName, status: "Bad RPC URL", ok: false)
             return
         }
-        let magnet = Magnet(url: url)
-        lastStatus = "Sending \(magnet.displayName)…"
+        lastStatus = "Sending \(source.displayName)…"
         Task {
-            switch await client.add(magnet, config: config) {
+            switch await client.add(source, config: config) {
             case .added(let n):
                 record(name: n, status: "Sent", ok: true)
                 Notify.post("Magnetize", "Sent: \(n)")
@@ -86,13 +102,13 @@ final class AppState: ObservableObject {
                 Notify.post("Magnetize", "Already in Transmission: \(n)")
             case .authFailed:
                 let status = hasCredentials ? "Wrong credentials" : "Server requires a login"
-                record(name: magnet.displayName, status: status, ok: false)
+                record(name: source.displayName, status: status, ok: false)
                 Notify.post("Magnetize", hasCredentials
                     ? "Wrong credentials — open Settings to fix."
                     : "This server requires a login — open Settings.")
                 openSettings()
             case .failed(let msg):
-                record(name: magnet.displayName, status: "Failed: \(msg)", ok: false)
+                record(name: source.displayName, status: "Failed: \(msg)", ok: false)
                 Notify.post("Magnetize", "Failed: \(msg)")
             }
         }
@@ -111,7 +127,7 @@ final class AppState: ObservableObject {
         pending.removeAll()
         queued.forEach(send)
         lastStatus = queued.isEmpty ? "Settings saved"
-            : "Settings saved — sending \(queued.count) queued magnet\(queued.count == 1 ? "" : "s")"
+            : "Settings saved — sending \(queued.count) queued torrent\(queued.count == 1 ? "" : "s")"
     }
 
     func testConnection() {

@@ -53,11 +53,11 @@ actor TransmissionClient {
         }
     }
 
-    func add(_ magnet: Magnet, config: Config) async -> SendOutcome {
-        let name = magnet.displayName
+    func add(_ source: TorrentSource, config: Config) async -> SendOutcome {
+        let name = source.displayName
         let payload: [String: Any] = [
             "method": "torrent-add",
-            "arguments": ["filename": magnet.url.absoluteString],
+            "arguments": source.addArguments,
         ]
         guard let body = try? JSONSerialization.data(withJSONObject: payload) else {
             return .failed("could not encode request")

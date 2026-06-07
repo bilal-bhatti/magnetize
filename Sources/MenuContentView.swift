@@ -6,11 +6,14 @@ import AppKit
 struct MenuContentView: View {
     @EnvironmentObject var state: AppState
 
-    private var clipboardMagnet: URL? {
-        guard let s = NSPasteboard.general.string(forType: .string),
-              s.hasPrefix("magnet:"), let url = URL(string: s) else { return nil }
-        return url
-    }
+    /// A magnet link or http(s) .torrent URL sitting on the clipboard, if any.
+    /// Read live (not as a computed property) so it refreshes every time the
+    /// popover opens and while it's open — SwiftUI won't re-poll the pasteboard
+    /// on its own since it isn't observable state.
+    @State private var clipboardURL: URL?
+    @State private var clipboardChangeCount = -1
+
+    private let clipboardPoll = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -22,6 +25,22 @@ struct MenuContentView: View {
         }
         .padding(.vertical, 6)
         .frame(width: 300)
+        .onAppear(perform: refreshClipboard)
+        .onReceive(clipboardPoll) { _ in refreshClipboard() }
+    }
+
+    /// Re-reads the pasteboard, but only does the parsing work when its contents
+    /// actually changed (cheap changeCount comparison otherwise).
+    private func refreshClipboard() {
+        let pb = NSPasteboard.general
+        guard pb.changeCount != clipboardChangeCount else { return }
+        clipboardChangeCount = pb.changeCount
+        if let s = pb.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           let url = URL(string: s), TorrentSource.from(url: url) != nil {
+            clipboardURL = url
+        } else {
+            clipboardURL = nil
+        }
     }
 
     // MARK: - Header
@@ -62,14 +81,21 @@ struct MenuContentView: View {
         }
     }
 
+    /// Label for the clipboard row — reflects what's on the clipboard, or stays
+    /// generic (and the row is disabled) when there's nothing to send.
+    private var clipboardLabel: String {
+        guard let url = clipboardURL else { return "Send from clipboard" }
+        return url.scheme?.lowercased() == "magnet"
+            ? "Send magnet from clipboard" : "Send torrent from clipboard"
+    }
+
     // MARK: - Actions
 
     private var actions: some View {
         VStack(alignment: .leading, spacing: 1) {
-            if let magnet = clipboardMagnet {
-                MenuRow(title: "Send magnet from clipboard", systemImage: "doc.on.clipboard") {
-                    state.handleIncoming(magnet)
-                }
+            MenuRow(title: clipboardLabel, systemImage: "doc.on.clipboard",
+                    enabled: clipboardURL != nil) {
+                if let url = clipboardURL { state.handleIncoming(url) }
             }
             MenuRow(title: "Test connection", systemImage: "bolt.horizontal") {
                 state.testConnection()
@@ -148,8 +174,14 @@ private struct RecentRow: View {
 private struct MenuRow: View {
     let title: String
     let systemImage: String
+    var enabled: Bool = true
     let action: () -> Void
     @State private var hovering = false
+
+    private var foreground: AnyShapeStyle {
+        if !enabled { return AnyShapeStyle(.tertiary) }
+        return hovering ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.primary)
+    }
 
     var body: some View {
         Button(action: action) {
@@ -164,14 +196,15 @@ private struct MenuRow: View {
             .padding(.vertical, 5)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
-            .foregroundStyle(hovering ? Color.white : Color.primary)
+            .foregroundStyle(foreground)
             .background(
                 RoundedRectangle(cornerRadius: 5)
-                    .fill(hovering ? Color.accentColor : Color.clear)
+                    .fill(hovering && enabled ? Color.accentColor : Color.clear)
             )
         }
         .buttonStyle(.plain)
+        .disabled(!enabled)
         .padding(.horizontal, 6)
-        .onHover { hovering = $0 }
+        .onHover { hovering = enabled && $0 }
     }
 }

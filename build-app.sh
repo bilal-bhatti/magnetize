@@ -5,7 +5,7 @@
 #
 #   ./build-app.sh            build to ./build/Magnetize.app
 #   ./build-app.sh --install  also install into /Applications and register the
-#                             magnet: handler with Launch Services
+#                             magnet: and .torrent handlers with Launch Services
 #
 # Re-run after editing anything in Sources/, Info.plist, or the icon.
 set -euo pipefail
@@ -31,7 +31,7 @@ swiftc \
   -o "$CONTENTS/MacOS/$NAME" \
   "$DIR"/Sources/*.swift
 
-# 3) metadata + icon (Info.plist declares the magnet: scheme and LSUIElement)
+# 3) metadata + icon (Info.plist declares the magnet: scheme, .torrent type, LSUIElement)
 cp "$DIR/Info.plist" "$CONTENTS/Info.plist"
 cp "$DIR/icon/$NAME.icns" "$CONTENTS/Resources/$NAME.icns"
 
@@ -47,5 +47,5 @@ if [[ "${1:-}" == "--install" ]]; then
     cp -R "$BUILD" "$DEST"
     "$LSREG" -f "$DEST"
     touch "$DEST"
-    echo "Installed $DEST (registered as the magnet: handler)"
+    echo "Installed $DEST (registered as the magnet: and .torrent handler)"
 fi

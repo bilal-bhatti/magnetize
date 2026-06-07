@@ -34,6 +34,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               let url = URL(string: raw) else { return }
         Task { @MainActor in AppState.shared.handleIncoming(url) }
     }
+
+    // .torrent files opened with Magnetize arrive as an OpenDocuments Apple Event,
+    // which AppKit routes here — separate from our GetURL handler above, so the
+    // two don't collide.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.isFileURL {
+            Task { @MainActor in AppState.shared.handleTorrentFile(url) }
+        }
+    }
 }
 
 @main
