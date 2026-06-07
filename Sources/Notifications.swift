@@ -1,13 +1,26 @@
-// Notifications.swift — result alerts. Prefers the native UserNotifications
-// framework; if the user hasn't granted permission (or it's an ad-hoc build the
-// system won't badge), it falls back to `osascript display notification`.
+// Notifications.swift — result alerts via the native UserNotifications
+// framework. Posting asks for permission the first time if it hasn't been
+// decided yet; once the user denies, the system suppresses delivery and there's
+// nothing more we can do.
 
 import Foundation
 import UserNotifications
+import os
 
 enum Notify {
+    private static let log = Logger(subsystem: "com.local.magnetize", category: "notifications")
+
     static func requestAuth() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    /// True when delivery is blocked (`.denied`) — used to surface a hint in the
+    /// popover. Delivered on the main actor.
+    static func isBlocked(_ completion: @escaping @Sendable (Bool) -> Void) {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let blocked = settings.authorizationStatus == .denied
+            DispatchQueue.main.async { completion(blocked) }
+        }
     }
 
     static func post(_ title: String, _ body: String) {
@@ -15,28 +28,25 @@ enum Notify {
         center.getNotificationSettings { settings in
             switch settings.authorizationStatus {
             case .authorized, .provisional:
-                let content = UNMutableNotificationContent()
-                content.title = title
-                content.body = body
-                center.add(UNNotificationRequest(identifier: UUID().uuidString,
-                                                 content: content, trigger: nil))
+                deliver(title: title, body: body)
+            case .notDetermined:
+                // First send before the launch prompt resolved — ask, then post.
+                center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                    if granted { deliver(title: title, body: body) }
+                    else { log.warning("Notification permission not granted; \"\(title, privacy: .public)\" not shown") }
+                }
             default:
-                fallback(title: title, body: body)
+                // denied/restricted — the system won't deliver regardless.
+                log.warning("Notifications denied; \"\(title, privacy: .public)\" not shown. Enable in System Settings.")
             }
         }
     }
 
-    private static func fallback(title: String, body: String) {
-        let script = "display notification \(quote(body)) with title \(quote(title))"
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        task.arguments = ["-e", script]
-        try? task.run()
-    }
-
-    /// AppleScript string literal: wrap in quotes, escape backslashes and quotes.
-    private static func quote(_ s: String) -> String {
-        "\"" + s.replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "\"", with: "\\\"") + "\""
+    private static func deliver(title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 }

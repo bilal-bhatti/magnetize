@@ -19,6 +19,27 @@ CONTENTS="$BUILD/Contents"
 DEST="/Applications/$NAME.app"
 LSREG=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 
+# Signing identity. Prefer a stable one so macOS keeps the notification grant
+# across rebuilds (ad-hoc regenerates the identity every build, losing it):
+#   $SIGN_ID set        -> use it (e.g. a Developer ID, or "-" to force ad-hoc)
+#   setup-signing cert  -> use it automatically
+#   otherwise           -> ad-hoc, with a hint to run ./setup-signing.sh
+SIGN_KEYCHAIN="$HOME/Library/Keychains/magnetize-signing.keychain-db"
+SIGN_NAME="Magnetize Local Signing"
+SIGN_KC=""   # set only when signing from our dedicated keychain
+if [[ -n "${SIGN_ID:-}" ]]; then
+    IDENTITY="$SIGN_ID"
+elif security find-identity -p codesigning "$SIGN_KEYCHAIN" 2>/dev/null | grep -q "$SIGN_NAME"; then
+    # No -v: the cert is self-signed/untrusted (fine to sign with) so it won't
+    # show as a "valid" identity, but codesign still uses it and produces a
+    # stable designated requirement that survives rebuilds.
+    IDENTITY="$SIGN_NAME"
+    SIGN_KC="$SIGN_KEYCHAIN"
+    security unlock-keychain -p "" "$SIGN_KEYCHAIN" 2>/dev/null || true
+else
+    IDENTITY="-"
+fi
+
 # 1) fresh bundle skeleton
 rm -rf "$BUILD"
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources"
@@ -35,11 +56,21 @@ swiftc \
 cp "$DIR/Info.plist" "$CONTENTS/Info.plist"
 cp "$DIR/icon/$NAME.icns" "$CONTENTS/Resources/$NAME.icns"
 
-# 4) ad-hoc code-sign (must be last; any later edit invalidates it). A stable
-#    signed identity is what lets the app post notifications under its own name.
-codesign --force --sign - "$BUILD"
+# 4) code-sign (must be last; any later edit invalidates it). A stable signed
+#    identity is what lets macOS remember the notification grant across rebuilds.
+if [[ -n "$SIGN_KC" ]]; then
+    codesign --force --sign "$IDENTITY" --keychain "$SIGN_KC" "$BUILD"
+else
+    codesign --force --sign "$IDENTITY" "$BUILD"
+fi
 
 echo "Built $BUILD"
+if [[ "$IDENTITY" == "-" ]]; then
+    echo "  (ad-hoc signed — notification permission resets on each rebuild;"
+    echo "   run ./setup-signing.sh once for a stable identity that keeps it.)"
+else
+    echo "  (signed as \"$IDENTITY\")"
+fi
 
 # 5) optional install
 if [[ "${1:-}" == "--install" ]]; then

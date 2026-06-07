@@ -19,6 +19,7 @@ struct MenuContentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+            if state.notificationsBlocked { notificationsWarning }
             Divider().padding(.vertical, 4)
             recentsSection
             Divider().padding(.vertical, 4)
@@ -29,6 +30,7 @@ struct MenuContentView: View {
         .onAppear {
             refreshClipboard()
             state.refreshStats()
+            state.refreshNotificationStatus()
         }
         .onReceive(clipboardPoll) { _ in refreshClipboard() }
         .onReceive(statsPoll) { _ in state.refreshStats() }
@@ -70,6 +72,26 @@ struct MenuContentView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 2)
+    }
+
+    /// Shown only when macOS is blocking notifications; tapping opens the
+    /// Notifications pane in System Settings so the user can re-enable us.
+    private var notificationsWarning: some View {
+        Button(action: state.openNotificationSettings) {
+            HStack(spacing: 6) {
+                Image(systemName: "bell.slash.fill").font(.system(size: 11))
+                Text("Notifications are off — enable in System Settings")
+                    .font(.system(size: 11))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 14)
+            .padding(.top, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Recents

@@ -24,6 +24,9 @@ final class AppState: ObservableObject {
     /// successful fetch (or after one fails) so we never show stale numbers.
     @Published var counts: TorrentCounts?
 
+    /// True when macOS is blocking our notifications — drives a hint in the popover.
+    @Published var notificationsBlocked = false
+
     private let client = TransmissionClient()
     private var pending: [TorrentSource] = []
 
@@ -143,6 +146,20 @@ final class AppState: ObservableObject {
             case .ok(let c):           counts = c
             case .authFailed, .failed: counts = nil
             }
+        }
+    }
+
+    /// Refreshes whether the system is blocking notifications (popover hint).
+    func refreshNotificationStatus() {
+        Notify.isBlocked { [weak self] blocked in
+            MainActor.assumeIsolated { self?.notificationsBlocked = blocked }
+        }
+    }
+
+    /// Opens System Settings at the Notifications pane so the user can re-enable us.
+    func openNotificationSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+            NSWorkspace.shared.open(url)
         }
     }
 

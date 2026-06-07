@@ -29,6 +29,24 @@ icon.
 Requires macOS 14+ and the Command Line Tools (`xcode-select --install`). No Apple
 Developer account needed.
 
+### Keep notifications working across rebuilds (optional)
+
+Ad-hoc signing regenerates the app's code identity on every build, and macOS ties
+the notification permission to that identity — so a rebuild silently drops the
+grant and you stop seeing alerts. To avoid that, create a stable self-signed
+identity once:
+
+```bash
+./setup-signing.sh        # one-time; no admin rights, no login-keychain prompts
+./build-app.sh --install  # now signs with it automatically
+```
+
+It lives in its own keychain (`magnetize-signing.keychain-db`) and holds nothing
+but this one local signing key. Remove it with `./setup-signing.sh --remove`. To
+sign with your own identity instead (e.g. a Developer ID), set `SIGN_ID="…"`
+before building. If you skip this, the app still builds and runs — you'll just
+need to re-enable notifications in System Settings after each rebuild.
+
 ## Configure
 
 First launch opens **Settings** (also reachable from the menu bar icon):
@@ -70,7 +88,8 @@ with: Magnetize** → **Change All…**.
 | `Sources/AppState.swift` | Config, credentials, recents, queue. |
 | `Sources/TorrentSource.swift` | Unifies a magnet link and a .torrent file. |
 | `Sources/*View.swift` | UI. |
-| `build-app.sh` | Compiles & installs. |
+| `build-app.sh` | Compiles, signs & installs. |
+| `setup-signing.sh` | Optional: creates a stable self-signed signing identity. |
 
 ## Reset
 
