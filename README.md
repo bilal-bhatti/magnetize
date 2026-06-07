@@ -68,10 +68,13 @@ After editing `handler.applescript` or regenerating the icon:
 ./build-app.sh
 ```
 
-To regenerate the icon from `draw-icon.swift`:
+To regenerate the icon after editing `icon/draw-icon.swift`:
 
 ```bash
-cd icon
-swift draw-icon.swift "$PWD/magnetize-1024.png"
-# then rebuild the .icns (see the sips/iconutil steps) and run ../build-app.sh
+./icon/build-icon.sh   # rebuilds icon/Magnetize.icns
+./build-app.sh         # installs it
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
