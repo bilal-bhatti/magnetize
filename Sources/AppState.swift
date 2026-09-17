@@ -203,11 +203,39 @@ final class AppState: ObservableObject {
             win.title = "Magnetize Settings"
             win.styleMask = [.titled, .closable]
             win.isReleasedWhenClosed = false
-            win.center()
             settingsWindow = win
         }
-        settingsWindow?.makeKeyAndOrderFront(nil)
-        settingsWindow?.orderFrontRegardless()
+        guard let win = settingsWindow else { return }
+        // Only when it's coming back from closed: leave it where the user
+        // dragged it if it's already on screen.
+        if !win.isVisible { centerOnActiveScreen(win) }
+        win.makeKeyAndOrderFront(nil)
+        win.orderFrontRegardless()
+    }
+
+    /// Puts the window in the true middle of the screen the pointer is on (the
+    /// one whose menu bar was just clicked). Not `NSWindow.center()`: that sits
+    /// a window a third of the way down rather than centered, and it would
+    /// measure the frame before SwiftUI has laid the form out, so it centers a
+    /// height that isn't the height you end up seeing.
+    private func centerOnActiveScreen(_ win: NSWindow) {
+        win.layoutIfNeeded()
+        if let fitting = win.contentViewController?.view.fittingSize,
+           fitting.width > 0, fitting.height > 0 {
+            win.setContentSize(fitting)
+        }
+
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { $0.frame.contains(mouse) }
+            ?? NSScreen.main ?? NSScreen.screens.first
+        guard let visible = screen?.visibleFrame else { return }
+
+        // visibleFrame excludes the menu bar and Dock, so centering in it is
+        // what reads as centered. Clamp in case the form is taller than the screen.
+        let size = win.frame.size
+        let x = min(max(visible.midX - size.width / 2, visible.minX), visible.maxX - size.width)
+        let y = min(max(visible.midY - size.height / 2, visible.minY), visible.maxY - size.height)
+        win.setFrameOrigin(NSPoint(x: x.rounded(), y: y.rounded()))
     }
 
     // MARK: - Recent history
