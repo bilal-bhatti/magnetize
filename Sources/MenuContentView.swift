@@ -106,8 +106,16 @@ struct MenuContentView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
         } else {
-            SectionLabel("Recent")
-            ForEach(state.recents.prefix(6)) { RecentRow(item: $0) }
+            SectionLabel("Recent") {
+                Button("Clear") { state.clearRecents() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .help("Clear the whole history (torrents stay in Transmission)")
+            }
+            ForEach(state.recents.prefix(6)) { item in
+                RecentRow(item: item) { state.removeRecent(item) }
+            }
         }
     }
 
@@ -173,24 +181,43 @@ private struct CountStrip: View {
     }
 }
 
-/// Small uppercase section heading aligned to the row text column.
-private struct SectionLabel: View {
+/// Small uppercase section heading aligned to the row text column, with an
+/// optional control pinned to the right edge (e.g. "Clear").
+private struct SectionLabel<Trailing: View>: View {
     let text: String
-    init(_ text: String) { self.text = text }
+    @ViewBuilder let trailing: Trailing
+
+    init(_ text: String, @ViewBuilder trailing: () -> Trailing) {
+        self.text = text
+        self.trailing = trailing()
+    }
+
     var body: some View {
-        Text(text.uppercased())
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14)
-            .padding(.top, 2)
-            .padding(.bottom, 3)
+        HStack(spacing: 8) {
+            Text(text.uppercased())
+            Spacer(minLength: 0)
+            trailing
+        }
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.top, 2)
+        .padding(.bottom, 3)
     }
 }
 
-/// One recent-send row: status glyph, name + detail.
+extension SectionLabel where Trailing == EmptyView {
+    init(_ text: String) { self.init(text) { EmptyView() } }
+}
+
+/// One recent-send row: status glyph, name + detail, and an × to forget it that
+/// fades in on hover. The button keeps its slot even when invisible so the name
+/// column doesn't re-truncate as the pointer moves over the list.
 private struct RecentRow: View {
     let item: SentItem
+    let remove: () -> Void
+    @State private var hovering = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -209,9 +236,22 @@ private struct RecentRow: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
+            Button(action: remove) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 14, height: 14)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(hovering ? 1 : 0)
+            .allowsHitTesting(hovering)
+            .help("Remove from history")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 3)
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
     }
 }
 

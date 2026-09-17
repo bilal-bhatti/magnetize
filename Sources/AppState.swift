@@ -210,6 +210,21 @@ final class AppState: ObservableObject {
         settingsWindow?.orderFrontRegardless()
     }
 
+    // MARK: - Recent history
+
+    /// Forgets one entry. Local bookkeeping only: the torrent stays in
+    /// Transmission and keeps downloading.
+    func removeRecent(_ item: SentItem) {
+        recents.removeAll { $0.id == item.id }
+        AppState.saveRecents(recents)
+    }
+
+    /// Forgets every entry. Same deal: nothing leaves Transmission.
+    func clearRecents() {
+        recents.removeAll()
+        AppState.saveRecents(recents)
+    }
+
     // MARK: - Helpers
 
     private func makeConfig() -> TransmissionClient.Config? {
